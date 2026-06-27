@@ -274,7 +274,7 @@ table.kh-table tbody tr:last-child td { border-bottom: none; }
         <span class="kh-search-icon">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M12.2 12.2 16 16"/></svg>
         </span>
-        <input class="input" id="khSearch" placeholder="Tìm theo tên, SĐT, email..." oninput="khRender()">
+        <input class="input" id="khSearch" placeholder="Tìm theo tên, SĐT, email..." oninput="khCurrentPage = 1; khRender()">
       </div>
       <select class="input" style="width:180px; flex: 0 0 auto;">
         <option>Tất cả khách hàng</option>
@@ -658,6 +658,7 @@ textarea.ackm-input {
 </div>
 
 <script>
+var khCurrentPage = 1;
 var editingCustomerId = null;
 
 function openAddCustomerModal(c = null) {
@@ -859,20 +860,40 @@ function updateOverviewStats(list) {
   }).length;
   document.getElementById('statCustDebt').textContent = countDebt;
 
-  var pagInfo = document.querySelector('.kh-pagination-info');
-  if (pagInfo) {
-    pagInfo.textContent = 'Hiển thị 1–' + list.length + ' trong tổng số ' + total + ' khách hàng';
-  }
 }
 
 function khRender(){
   var tb = document.getElementById('custTbody'); if (!tb || !window.QrantyKhach) return;
   var q = (document.getElementById('khSearch') || {}).value || '';
   var list = q ? QrantyKhach.search(q) : QrantyKhach.getAll();
-  tb.innerHTML = list.length
-    ? list.map(khRow).join('')
+  
+  var totalItems = list.length;
+  var pageSize = 10;
+  var totalPages = Math.ceil(totalItems / pageSize) || 1;
+  if (khCurrentPage > totalPages) khCurrentPage = totalPages;
+  if (khCurrentPage < 1) khCurrentPage = 1;
+  
+  var pageItems = list.slice((khCurrentPage - 1) * pageSize, khCurrentPage * pageSize);
+  
+  tb.innerHTML = pageItems.length
+    ? pageItems.map(khRow).join('')
     : '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text-4)">Không có khách hàng nào.</td></tr>';
   updateOverviewStats(list);
+  
+  if (window.setupPagination) {
+    window.setupPagination({
+      totalItems: totalItems,
+      currentPage: khCurrentPage,
+      pageSize: pageSize,
+      infoElement: '.kh-pagination-info',
+      controlsElement: '.kh-pagination-controls',
+      itemName: 'khách hàng',
+      onPageChange: function (page) {
+        khCurrentPage = page;
+        khRender();
+      }
+    });
+  }
 }
 
 function khDelete(id){

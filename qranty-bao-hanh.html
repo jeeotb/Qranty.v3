@@ -306,9 +306,9 @@ table.kh-table tbody tr:last-child td { border-bottom: none; }
         <span class="kh-search-icon">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M12.2 12.2 16 16"/></svg>
         </span>
-        <input class="input" id="searchWarranty" placeholder="Tìm theo serial, tên sản phẩm, khách hàng, SĐT..." oninput="handleSearch(this.value)">
+        <input class="input" id="searchWarranty" placeholder="Tìm theo serial, tên sản phẩm, khách hàng, SĐT..." oninput="bhCurrentPage = 1; handleSearch(this.value)">
       </div>
-      <select class="input" id="bhCatFilter" style="width:200px;flex:0 0 auto" onchange="bhSetCat(this.value)" title="Lọc theo danh mục (chung với Kho hàng)">
+      <select class="input" id="bhCatFilter" style="width:200px;flex:0 0 auto" onchange="bhCurrentPage = 1; bhSetCat(this.value)" title="Lọc theo danh mục (chung với Kho hàng)">
         <option value="">Tất cả danh mục</option>
       </select>
       <div class="kh-spacer"></div>
@@ -377,6 +377,7 @@ table.kh-table tbody tr:last-child td { border-bottom: none; }
 </main>
 
 <script>
+var bhCurrentPage = 1;
 function toggleSidebar() {
   document.body.classList.toggle('sb-collapsed');
 }
@@ -589,17 +590,34 @@ function renderWarrantyTable() {
   set('bhCountHet', counts['het-han']);
   set('bhCountThu', counts['thu-hoi']);
 
-  var pagInfo = document.querySelector('.kh-pagination-info');
-  if (pagInfo) {
-    pagInfo.textContent = 'Hiển thị 1–' + filteredList.length + ' trong tổng số ' + counts.all + ' sản phẩm';
-  }
+  var totalItems = filteredList.length;
+  var pageSize = 10;
+  var totalPages = Math.ceil(totalItems / pageSize) || 1;
+  if (bhCurrentPage > totalPages) bhCurrentPage = totalPages;
+  if (bhCurrentPage < 1) bhCurrentPage = 1;
 
-  if (filteredList.length === 0) {
+  var pageItems = filteredList.slice((bhCurrentPage - 1) * pageSize, bhCurrentPage * pageSize);
+
+  if (pageItems.length === 0) {
     tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:var(--text-4);padding:24px;">Không tìm thấy phiếu bảo hành nào</td></tr>';
+    if (window.setupPagination) {
+      window.setupPagination({
+        totalItems: 0,
+        currentPage: 1,
+        pageSize: pageSize,
+        infoElement: '.kh-pagination-info',
+        controlsElement: '.kh-pagination-controls',
+        itemName: 'sản phẩm',
+        onPageChange: function (page) {
+          bhCurrentPage = page;
+          renderWarrantyTable();
+        }
+      });
+    }
     return;
   }
 
-  filteredList.forEach(function(w) {
+  pageItems.forEach(function(w) {
     var tr = document.createElement('tr');
     tr.dataset.serial = w.serial;
     tr.dataset.status = w.resolvedStatus;
@@ -634,7 +652,7 @@ function renderWarrantyTable() {
                 Thu hồi bảo hành\
               </div>\
               <div class="recall-popover-sub">Vui lòng nhập lý do thu hồi. Thông tin này sẽ được lưu vào lịch sử sản phẩm.</div>\
-              <textarea class="recall-textarea" placeholder="Ví dụ: khách trả hàng, đổi máy mới, sai serial..."></textarea>\
+               <textarea class="recall-textarea" placeholder="Ví dụ: khách trả hàng, đổi máy mới, sai serial..."></textarea>\
               <div class="recall-popover-actions">\
                 <button class="recall-btn-cancel" onclick="toggleRecall(this, event)">Huỷ</button>\
                 <button class="recall-btn-confirm" onclick="confirmRecall(\'' + w.serial + '\', this)">Xác nhận thu hồi</button>\
@@ -664,6 +682,22 @@ function renderWarrantyTable() {
     ';
     tbody.appendChild(tr);
   });
+
+  if (window.setupPagination) {
+    window.setupPagination({
+      totalItems: totalItems,
+      currentPage: bhCurrentPage,
+      pageSize: pageSize,
+      infoElement: '.kh-pagination-info',
+      controlsElement: '.kh-pagination-controls',
+      itemName: 'sản phẩm',
+      onPageChange: function (page) {
+        bhCurrentPage = page;
+        renderWarrantyTable();
+      }
+    });
+  }
+
   if (window.Qranty && typeof Qranty.renderRows === 'function') {
     Qranty.renderRows();
   }
@@ -671,6 +705,7 @@ function renderWarrantyTable() {
 
 function bhFilter(key, el) {
   currentFilter = key;
+  bhCurrentPage = 1;
   document.querySelectorAll('#bhStats .stat-card').forEach(function (x) {
     x.classList.toggle('active', el ? x === el : x.dataset.filter === key);
   });

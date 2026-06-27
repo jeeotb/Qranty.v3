@@ -671,7 +671,7 @@ body.apm-panel-open .main { margin-right: 420px; transition: margin-right .25s e
               <span class="kh-search-icon">
                 <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M12.2 12.2 16 16"/></svg>
               </span>
-              <input class="input" id="goodsSearch" placeholder="Tìm theo tên, SKU, serial..." oninput="renderGoodsTable()">
+              <input class="input" id="goodsSearch" placeholder="Tìm theo tên, SKU, serial..." oninput="goodsCurrentPage = 1; renderGoodsTable()">
             </div>
             
             <div class="tab-pill" id="goodsTypeFilter">
@@ -1360,6 +1360,7 @@ body.apm-panel-open .main { margin-right: 420px; transition: margin-right .25s e
 <div class="apm-toast" id="apmToast"></div>
 
 <script>
+var goodsCurrentPage = 1;
 function toggleSidebar() {
   document.body.classList.toggle('sb-collapsed');
 }
@@ -1451,10 +1452,9 @@ function filterGoodsGroup(el) {
   document.querySelectorAll('#goodsTypeFilter .tp-item').forEach(function (item) {
     item.classList.toggle('active', item === el);
   });
-  document.querySelectorAll('#goodsTable tbody tr').forEach(function (tr) {
-    var match = group === 'all' || tr.dataset.group === group;
-    tr.classList.toggle('goods-hidden', !match);
-  });
+  window.goodsGroupFilter = group;
+  goodsCurrentPage = 1;
+  renderGoodsTable();
 }
 
 /* "Chỉ hiện chưa chuẩn hóa" — lọc các danh mục được tạo nhanh từ Thao tác nhanh, chưa điền đủ thuộc tính */
@@ -2347,6 +2347,7 @@ function khCatFilterClick(e) {
   else if (sub !== null) { KH_CAT.cat = cat; KH_CAT.sub = sub; KH_CAT.brand = null; }
   else if (brand !== null) { KH_CAT.cat = cat; KH_CAT.brand = brand; KH_CAT.sub = null; }
   else { KH_CAT.cat = cat; KH_CAT.sub = null; KH_CAT.brand = null; KH_CAT.expanded[cat] = true; }
+  goodsCurrentPage = 1;
   renderGoodsTable();   // gọi renderCatFilter() ở cuối -> cập nhật active + đếm
 }
 
@@ -2441,6 +2442,15 @@ function renderGoodsTable() {
   if (!tbody) return;
   var q = (document.getElementById('goodsSearch') ? document.getElementById('goodsSearch').value.trim().toLowerCase() : '');
   var list = QrantyKho.getData();
+  
+  var group = window.goodsGroupFilter || 'all';
+  if (group !== 'all') {
+    list = list.filter(function (p) {
+      var grp = (p.category === 'Linh kiện' || p.category === 'Phụ kiện') ? 'part' : 'product';
+      return grp === group;
+    });
+  }
+  
   if (KH_CAT.cat && KH_CAT.cat !== 'all') {
     list = list.filter(function (p) { return khCatName(p) === KH_CAT.cat; });
     if (KH_CAT.sub) list = list.filter(function (p) { return khSubName(p) === KH_CAT.sub; });
@@ -2455,7 +2465,15 @@ function renderGoodsTable() {
     });
   }
   
-  tbody.innerHTML = list.map(function (p) {
+  var totalItems = list.length;
+  var pageSize = 10;
+  var totalPages = Math.ceil(totalItems / pageSize) || 1;
+  if (goodsCurrentPage > totalPages) goodsCurrentPage = totalPages;
+  if (goodsCurrentPage < 1) goodsCurrentPage = 1;
+  
+  var pageItems = list.slice((goodsCurrentPage - 1) * pageSize, goodsCurrentPage * pageSize);
+  
+  tbody.innerHTML = pageItems.map(function (p) {
     var grp = (p.category === 'Linh kiện' || p.category === 'Phụ kiện') ? 'part' : 'product';
     var grpLabel = grp === 'part' ? 'Linh kiện' : 'Sản phẩm';
     var costPriceText = p.costPrice ? QrantyKho.fmtVND(p.costPrice) : '<span class="td-dash">-</span>';
@@ -2512,6 +2530,21 @@ function renderGoodsTable() {
       '</td>' +
     '</tr>';
   }).join('');
+  
+  if (window.setupPagination) {
+    window.setupPagination({
+      totalItems: totalItems,
+      currentPage: goodsCurrentPage,
+      pageSize: pageSize,
+      infoElement: '#goodsPaginationInfo',
+      controlsElement: '#panel-hanghoa .kh-pagination-controls',
+      itemName: 'hàng hóa',
+      onPageChange: function (page) {
+        goodsCurrentPage = page;
+        renderGoodsTable();
+      }
+    });
+  }
 
   if (window.Qranty && typeof Qranty.renderRows === 'function') {
     Qranty.renderRows();

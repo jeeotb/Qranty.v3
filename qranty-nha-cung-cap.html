@@ -169,9 +169,9 @@ textarea.ackm-input { height: 72px; padding: 10px 12px; resize: vertical; line-h
         <span class="kh-search-icon">
           <svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="5.5"/><path d="M12.2 12.2 16 16"/></svg>
         </span>
-        <input class="input" id="khSearch" placeholder="Tìm theo tên, SĐT, người liên hệ..." oninput="khRender()">
+        <input class="input" id="khSearch" placeholder="Tìm theo tên, SĐT, người liên hệ..." oninput="supCurrentPage = 1; khRender()">
       </div>
-      <select class="input" id="khTypeFilter" style="width:190px; flex: 0 0 auto;" onchange="khRender()">
+      <select class="input" id="khTypeFilter" style="width:190px; flex: 0 0 auto;" onchange="supCurrentPage = 1; khRender()">
         <option value="">Tất cả đối tác</option>
         <option value="ncc">Nhà cung cấp</option>
         <option value="npp">Nhà phân phối</option>
@@ -228,6 +228,7 @@ textarea.ackm-input { height: 72px; padding: 10px 12px; resize: vertical; line-h
       </div>
       <div class="kh-pagination">
         <div class="kh-pagination-info">Hiển thị 0 nhà cung cấp</div>
+        <div class="kh-pagination-controls"></div>
       </div>
     </div>
   </div>
@@ -367,6 +368,7 @@ function setAppMode(mode, e) {
 </div>
 
 <script>
+var supCurrentPage = 1;
 var editingSupplierId = null;
 
 function openAddSupplierModal(s) {
@@ -508,8 +510,6 @@ function updateOverviewStats(list) {
   document.getElementById('statSupPurchased').textContent = fmt(totalPurchased);
   document.getElementById('statSupDebt').textContent = fmt(QrantySupplier.totalPayable());
 
-  var pagInfo = document.querySelector('.kh-pagination-info');
-  if (pagInfo) pagInfo.textContent = 'Hiển thị ' + list.length + ' / ' + all.length + ' nhà cung cấp';
 }
 
 function khRender(){
@@ -522,10 +522,34 @@ function khRender(){
   } else if (filter) {
     list = list.filter(function (s) { return (s.type || 'ncc') === filter; });
   }
-  tb.innerHTML = list.length
-    ? list.map(khRow).join('')
+  
+  var totalItems = list.length;
+  var pageSize = 10;
+  var totalPages = Math.ceil(totalItems / pageSize) || 1;
+  if (supCurrentPage > totalPages) supCurrentPage = totalPages;
+  if (supCurrentPage < 1) supCurrentPage = 1;
+  
+  var pageItems = list.slice((supCurrentPage - 1) * pageSize, supCurrentPage * pageSize);
+  
+  tb.innerHTML = pageItems.length
+    ? pageItems.map(khRow).join('')
     : '<tr><td colspan="9" style="text-align:center;padding:28px;color:var(--text-4)">Không có nhà cung cấp nào.</td></tr>';
   updateOverviewStats(list);
+  
+  if (window.setupPagination) {
+    window.setupPagination({
+      totalItems: totalItems,
+      currentPage: supCurrentPage,
+      pageSize: pageSize,
+      infoElement: '.kh-pagination-info',
+      controlsElement: '.kh-pagination-controls',
+      itemName: 'nhà cung cấp',
+      onPageChange: function (page) {
+        supCurrentPage = page;
+        khRender();
+      }
+    });
+  }
 }
 
 function khDelete(id){
